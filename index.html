@@ -224,12 +224,7 @@
   .coach .timer i{display:block;height:100%;width:0;background:var(--teal);border-radius:3px;}
   .coach .timer i.accent{background:var(--orange);}
 
-  /* skip control */
-  .toprow{position:fixed;top:26px;right:30px;z-index:60;pointer-events:auto;display:flex;gap:8px;}
-  .toprow button{font-family:inherit;font-size:12.5px;font-weight:600;border:none;cursor:pointer;
-    border-radius:999px;padding:9px 17px;background:rgba(255,255,255,.94);color:var(--ink);
-    box-shadow:0 6px 18px rgba(0,0,0,.18);backdrop-filter:blur(6px);transition:.15s;}
-  .toprow button:hover{transform:translateY(-1px);}
+  /* (skip control removed) */
 
   @media (max-width:1100px){
     .pane.chat{flex:0 0 30%;}
@@ -285,7 +280,7 @@
     .coach .ctrl{gap:8px;}
     .btn{padding:11px 22px;font-size:14px;}
     .btn.ghost{padding:11px 10px;}
-    .toprow{top:auto;bottom:calc(14px + 100%);right:16px;}
+    .toprow{display:none;}
   }
 
   @media (max-width:380px){
@@ -491,10 +486,6 @@
   </div>
 </div>
 
-<div class="toprow">
-  <button id="skipBtn">skip tour</button>
-</div>
-
 
 <script>
 (function(){
@@ -540,18 +531,18 @@
   /* ---------- tutorial ---------- */
   const steps = [
     {
-      target:'pane-chat', accent:false, side:'right', tag:'chat',
+      target:'pane-chat', accent:false, side:'right', tag:'chat', dur:6500,
       title:'tell brightplace what you want',
       body:"This is your conversation. Describe your search in plain language — budget, neighborhood, must-haves — and refine it any time. The tappable follow-ups help you go deeper fast."
     },
     {
-      target:'pane-listings', accent:false, side:'right', tag:'listings',
+      target:'pane-listings', accent:false, side:'right', tag:'listings', dur:6500,
       title:'browse your matches',
       body:"Every result lands here as a card with photos, unit counts and starting prices. The list scrolls — there's more below — and the heart saves the ones you like.",
       demo:'scroll'
     },
     {
-      target:'map-card', accent:true, side:'left', tag:'map',
+      target:'map-card', accent:true, side:'left', tag:'map', dur:5500,
       title:'see it on the map',
       body:"Each match is pinned by location, so you can read the neighborhood at a glance."
     }
@@ -563,7 +554,7 @@
   const spotlight = el('spotlight'), ring = el('ring'), pulse = el('pulse');
   const coach = el('coach'), arrow = el('arrow');
   const tag = el('tag'), tagtext = el('tagtext'), ctitle = el('ctitle'), cbody = el('cbody');
-  const nextBtn = el('nextBtn'), backBtn = el('backBtn'), skipBtn = el('skipBtn');
+  const nextBtn = el('nextBtn'), backBtn = el('backBtn');
   const progress = el('progress'), timerbar = el('timerbar');
 
   steps.forEach(()=>{ const s=document.createElement('span'); progress.appendChild(s); });
@@ -621,25 +612,47 @@
 
     coach.classList.add('show');
     if(s.demo === 'scroll') scrollDemo();
-    // manual mode: user drives via next/previous/finish buttons (no auto-advance)
+
+    // auto-advance: animate the timer bar, then move to the next section
+    startTimer(s.dur || 6000);
+  }
+
+  function startTimer(ms){
+    clearTimeout(timer);
+    // reset the fill, then animate it to full width over `ms`
+    timerbar.style.transition = 'none';
+    timerbar.style.width = '0%';
+    // force reflow so the reset takes effect before we animate
+    void timerbar.offsetWidth;
+    timerbar.style.transition = 'width ' + ms + 'ms linear';
+    timerbar.style.width = '100%';
+    timer = setTimeout(go, ms);
+  }
+
+  function stopTimer(){
+    clearTimeout(timer);
+    timerbar.style.transition = 'none';
+    timerbar.style.width = '0%';
   }
 
   function go(){ if(i < steps.length-1){ i++; place(i); } else finish(); }
   function back(){ if(i>0){ i--; place(i);} }
 
   function finish(){
-    clearTimeout(timer); clearDemos();
+    stopTimer(); clearDemos();
     cardsEl.scrollTo({top:0, behavior:'smooth'});
     coach.classList.remove('show');
     el('overlay').style.opacity = '0';
     el('overlay').style.transition = 'opacity .4s';
-    skipBtn.style.display = 'none';
-    setTimeout(()=>{ el('overlay').style.display='none'; }, 420);
+    setTimeout(()=>{
+      el('overlay').style.display='none';
+      // loop: go back to the starting landing / chatbot phase and replay
+      intro();
+    }, 900);
   }
 
   function start(){
-    clearTimeout(timer); clearDemos();
-    skipBtn.style.display = '';
+    stopTimer(); clearDemos();
     const o = el('overlay');
     o.style.display='block'; o.style.transition='opacity .5s ease'; o.style.opacity='0';
     requestAnimationFrame(()=> o.style.opacity='1');
@@ -648,7 +661,6 @@
 
   nextBtn.addEventListener('click', go);
   backBtn.addEventListener('click', back);
-  skipBtn.addEventListener('click', finish);
 
   window.addEventListener('resize', ()=>{ if(el('overlay').style.display!=='none') place(i); });
 
@@ -667,14 +679,13 @@
   function hideOverlayInstant(){
     const o = el('overlay'); o.style.transition='none'; o.style.opacity='0'; o.style.display='none';
   }
-  // countdown bar not used in interactive (manual) mode
-  timerbar.style.display='none';
 
   const LANDING_HOLD = 1100;   // show landing before typing
   const SUBMIT_PAUSE = 600;    // after typed, before submit
   const CROSSFADE    = 600;    // landing -> results
 
   function resetLanding(){
+    stopTimer();
     landing.classList.remove('hide');
     landText.textContent = 'Ask brightplace…';
     landText.classList.remove('filled','caret');
